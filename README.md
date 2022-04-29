@@ -23,3 +23,5 @@ ON APPEARANCE CHANGE CALL(method)
 ```
 
 `#DECLARE($mode:Text)` $1 is either light or dark
+
+[miyako.github.io](https://miyako.github.io/2022/04/29/scheme-notification.html)
