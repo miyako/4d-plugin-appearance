@@ -1,0 +1,11 @@
+{
+    "name": "Appearance",
+    "id": 20000,
+    "commands": [
+        {
+            "theme": "Appearance",
+            "syntax": "Get application color scheme:T",
+            "threadSafe": true
+        }
+    ]
+}

@@ -1,0 +1,16 @@
+{
+    "name": "Appearance",
+    "id": 20000,
+    "commands": [
+        {
+            "theme": "Appearance",
+            "syntax": "Get system color scheme:T",
+            "threadSafe": true
+        },
+        {
+            "theme": "Appearance",
+            "syntax": "ON APPEARANCE CHANGE CALL(&T)",
+            "threadSafe": true
+        }
+    ]
+}
