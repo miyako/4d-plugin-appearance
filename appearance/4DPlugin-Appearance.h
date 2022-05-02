@@ -47,5 +47,6 @@ typedef enum {
 
 static void Get_system_color_scheme(PA_PluginParameters params);
 static void ON_APPEARANCE_CHANGE_CALL(PA_PluginParameters params);
+static void Get_effective_color_scheme(PA_PluginParameters params);
 
 #endif /* PLUGIN_APPEARANCE_H */

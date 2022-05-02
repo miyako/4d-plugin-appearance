@@ -119,6 +119,9 @@ void PluginMain(PA_long32 selector, PA_PluginParameters params) {
             case 2 :
                 ON_APPEARANCE_CHANGE_CALL(params);
                 break;
+            case 3 :
+                Get_effective_color_scheme(params);
+                break;
 
         }
 
@@ -190,6 +193,30 @@ static appearance_t get_system_appearance() {
     }
     
     return appearance;
+}
+
+static void Get_effective_color_scheme(PA_PluginParameters params) {
+ 
+    appearance_t appearance;
+    
+    PA_RunInMainProcess((PA_RunInMainProcessProcPtr)get_application_appearance, &appearance);
+    
+    PA_Unichar DARK[]  = { 'd', 'a', 'r', 'k', 0 };
+    PA_Unichar LIGHT[] = { 'l', 'i', 'g', 'h', 't', 0 };
+    PA_Unichar AUTO[]  = { 'a', 'u', 't', 'o', 0 };
+        
+    switch (appearance) {
+        case appearance_dark:
+            PA_ReturnString(params, DARK);
+            break;
+        case appearance_auto:
+            PA_ReturnString(params, AUTO);
+            break;
+        case appearance_light:
+        default:
+            PA_ReturnString(params, LIGHT);
+            break;
+    }
 }
 
 static void Get_system_color_scheme(PA_PluginParameters params) {

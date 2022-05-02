@@ -12,6 +12,7 @@ inspired by [ruiaureliano/macOS-Appearance](https://github.com/ruiaureliano/macO
 
 ```4d
 scheme:=Get system color scheme
+scheme:=Get effective color scheme
 ```
 
 1. On Catalina and above, read `NSUserDefaults` `AppleInterfaceStyleSwitchesAutomatically` for "auto".
