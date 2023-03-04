@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<VariablesViewState
+   version = "1.0">
+   <ContextStates>
+      <ContextState
+         contextName = "get_application_appearance(appearance_t*):4DPlugin-Appearance.cpp">
+         <PersistentStrings>
+            <PersistentString
+               value = "[basicAppearance description]">
+            </PersistentString>
+         </PersistentStrings>
+      </ContextState>
+   </ContextStates>
+</VariablesViewState>

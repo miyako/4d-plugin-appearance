@@ -139,14 +139,28 @@ static void get_application_appearance(appearance_t *scheme) {
     appearance_t appearance = appearance_light;
     
     if (@available(macOS 10.14, *)) {
-        NSAppearance *effectiveAppearance = [[NSApplication sharedApplication]effectiveAppearance];
-        if([@[NSAppearanceNameDarkAqua,
-              NSAppearanceNameVibrantDark,
-              NSAppearanceNameAccessibilityHighContrastDarkAqua,
-              NSAppearanceNameAccessibilityHighContrastVibrantDark
-            ]indexOfObjectIdenticalTo:effectiveAppearance.name]!= NSNotFound) {
-            appearance = appearance_dark;
-        }
+        
+        NSAppearanceName basicAppearance = [[[NSApplication sharedApplication]effectiveAppearance] bestMatchFromAppearancesWithNames:@[
+            NSAppearanceNameAqua,
+            NSAppearanceNameDarkAqua
+        ]];
+        
+        appearance = [basicAppearance isEqualToString:NSAppearanceNameDarkAqua] ? appearance_dark : appearance_light;
+        
+        /*
+         NSAppearance *effectiveAppearance = [[NSApplication sharedApplication]effectiveAppearance];
+         
+         bestMatchFromAppearancesWithNames
+         
+         if([@[NSAppearanceNameDarkAqua,
+               NSAppearanceNameVibrantDark,
+               NSAppearanceNameAccessibilityHighContrastDarkAqua,
+               NSAppearanceNameAccessibilityHighContrastVibrantDark
+             ]indexOfObjectIdenticalTo:effectiveAppearance.name]!= NSNotFound) {
+             appearance = appearance_dark;
+         }
+         */
+
     }
     
     *scheme = appearance;
