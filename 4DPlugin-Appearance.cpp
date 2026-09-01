@@ -210,26 +210,39 @@ static appearance_t get_system_appearance() {
 }
 
 static void Get_effective_color_scheme(PA_PluginParameters params) {
- 
-    appearance_t appearance;
-    
-    PA_RunInMainProcess((PA_RunInMainProcessProcPtr)get_application_appearance, &appearance);
-    
+
     PA_Unichar DARK[]  = { 'd', 'a', 'r', 'k', 0 };
     PA_Unichar LIGHT[] = { 'l', 'i', 'g', 'h', 't', 0 };
     PA_Unichar AUTO[]  = { 'a', 'u', 't', 'o', 0 };
-        
-    switch (appearance) {
-        case appearance_dark:
-            PA_ReturnString(params, DARK);
-            break;
-        case appearance_auto:
-            PA_ReturnString(params, AUTO);
-            break;
-        case appearance_light:
-        default:
-            PA_ReturnString(params, LIGHT);
-            break;
+
+    /* manifest.json declares this command ":T" (returns Text). PluginMain's
+       own try/catch(...) is outside this function and has no return-value
+       context, so if anything below threw and only that outer catch caught
+       it, 4D would be left waiting on a return that never comes - a freeze,
+       not just a crash. Guaranteeing PA_ReturnString runs on every path,
+       including a caught exception, removes that failure mode here. */
+    try
+    {
+        appearance_t appearance;
+
+        PA_RunInMainProcess((PA_RunInMainProcessProcPtr)get_application_appearance, &appearance);
+
+        switch (appearance) {
+            case appearance_dark:
+                PA_ReturnString(params, DARK);
+                break;
+            case appearance_auto:
+                PA_ReturnString(params, AUTO);
+                break;
+            case appearance_light:
+            default:
+                PA_ReturnString(params, LIGHT);
+                break;
+        }
+    }
+    catch(...)
+    {
+        PA_ReturnString(params, LIGHT);
     }
 }
 
@@ -238,22 +251,31 @@ static void Get_system_color_scheme(PA_PluginParameters params) {
     PA_Unichar DARK[]  = { 'd', 'a', 'r', 'k', 0 };
     PA_Unichar LIGHT[] = { 'l', 'i', 'g', 'h', 't', 0 };
     PA_Unichar AUTO[]  = { 'a', 'u', 't', 'o', 0 };
-    
-    appearance_t appearance = get_system_appearance();
-    
-    switch (appearance) {
-        case appearance_dark:
-            PA_ReturnString(params, DARK);
-            break;
-        case appearance_auto:
-            PA_ReturnString(params, AUTO);
-            break;
-        case appearance_light:
-        default:
-            PA_ReturnString(params, LIGHT);
-            break;
-    }
 
+    /* same reasoning as Get_effective_color_scheme above: this command is
+       also declared ":T" in manifest.json, so guarantee a return on every
+       path, including a caught exception. */
+    try
+    {
+        appearance_t appearance = get_system_appearance();
+
+        switch (appearance) {
+            case appearance_dark:
+                PA_ReturnString(params, DARK);
+                break;
+            case appearance_auto:
+                PA_ReturnString(params, AUTO);
+                break;
+            case appearance_light:
+            default:
+                PA_ReturnString(params, LIGHT);
+                break;
+        }
+    }
+    catch(...)
+    {
+        PA_ReturnString(params, LIGHT);
+    }
 }
 
 static void generateUuid(CUTF16String &uuid) {
@@ -277,9 +299,17 @@ static void Callback(CFNotificationCenterRef center,
                      const void *object,
                      CFDictionaryRef userInfo)
 {
-    NSDictionary *_userInfo = (NSDictionary *)userInfo;
-        
-    appearance_t appearance = (get_system_appearance() == appearance_dark) ? appearance_light : appearance_dark;
+    /* The value pushed here is only ever used as a queue entry/trigger -
+       listenerLoopExecuteMethod() unconditionally recomputes the real
+       appearance from the effective app appearance before handing it to
+       the user's callback (see its own "for reference; over-ride with the
+       effective scheme" comment), so this just needs *a* valid enum value,
+       not the correct one. The previous version computed it by inverting
+       get_system_appearance()'s result, which reads as a bug at a glance;
+       using the plain current value instead is equivalent in effect and
+       doesn't require the reader to double back and confirm it's discarded
+       downstream. */
+    appearance_t appearance = get_system_appearance();
     
     if(1)
     {
@@ -291,7 +321,7 @@ static void Callback(CFNotificationCenterRef center,
     listenerLoopExecute();
 }
 
-void listenerLoop()
+static void listenerLoop()
 {
     if(1)
     {
@@ -402,21 +432,34 @@ void listenerLoop()
     PA_KillProcess();
 }
 
-void listenerLoopStart()
+static void listenerLoopStart()
 {
+    /* Read-and-spawn is now done under one lock instead of check-then-act:
+       the previous version read appearance::METHOD_PROCESS_ID unguarded,
+       then only took globalMutex1 around the write, so two concurrent
+       callers could both observe 0 and each spawn a monitor process. */
+    std::lock_guard<std::mutex> lock(globalMutex1);
+
     if(!appearance::METHOD_PROCESS_ID)
     {
-        std::lock_guard<std::mutex> lock(globalMutex1);
-        
         appearance::METHOD_PROCESS_ID = PA_NewProcess((void *)listenerLoop,
                                                       appearance::MONITOR_PROCESS_STACK_SIZE,
                                                       appearance::MONITOR_PROCESS_NAME);
     }
 }
 
-void listenerLoopFinish()
+static void listenerLoopFinish()
 {
-    if(appearance::METHOD_PROCESS_ID)
+    process_number_t methodProcessId;
+
+    if(1)
+    {
+        std::lock_guard<std::mutex> lock(globalMutex1);
+
+        methodProcessId = appearance::METHOD_PROCESS_ID;
+    }
+
+    if(methodProcessId)
     {
         if(1)
         {
@@ -436,7 +479,7 @@ void listenerLoopFinish()
     }
 }
 
-void listenerLoopExecute()
+static void listenerLoopExecute()
 {
     if(1)
     {
@@ -454,7 +497,7 @@ void listenerLoopExecute()
 
 }
 
-void listenerLoopExecuteMethod()
+static void listenerLoopExecuteMethod()
 {
     appearance_t appearance;
     
@@ -478,14 +521,29 @@ void listenerLoopExecuteMethod()
     
     PA_RunInMainProcess((PA_RunInMainProcessProcPtr)get_application_appearance, &appearance);
 
-    method_id_t methodId = PA_GetMethodID((PA_Unichar *)appearance::LISTENER_METHOD.c_str());
+    /* Snapshot the listener method name under globalMutex2 before use.
+       ON_APPEARANCE_CHANGE_CALL can reassign appearance::LISTENER_METHOD
+       concurrently from any 4D process (the command is threadSafe per
+       manifest.json), so every *read* of the shared std::wstring needs the
+       same lock its writer uses - reading it directly here (as before) was
+       a data race: a concurrent reassignment can free/reallocate the
+       string's internal buffer while c_str()/length() are being read. */
+    CUTF16String listenerMethod;
+    if(1)
+    {
+        std::lock_guard<std::mutex> lock(globalMutex2);
+
+        listenerMethod = appearance::LISTENER_METHOD;
+    }
+
+    method_id_t methodId = PA_GetMethodID((PA_Unichar *)listenerMethod.c_str());
     
     if(methodId)
     {
         PA_Variable    params[1];
         params[0] = PA_CreateVariable(eVK_Unistring);
         
-        PA_Unistring arg1;
+        PA_Unistring arg1 = PA_CreateUnistring(LIGHT);
         
         switch (appearance) {
             case appearance_dark:
@@ -493,7 +551,11 @@ void listenerLoopExecuteMethod()
                 break;
             case appearance_light:
                 arg1 = PA_CreateUnistring(LIGHT);
+                break;
             default:
+                /* get_application_appearance() only ever yields light/dark;
+                   default kept so arg1 is never left uninitialized if that
+                   invariant is ever broken by a future edit */
                 break;
         }
     
@@ -503,16 +565,16 @@ void listenerLoopExecuteMethod()
         
         PA_ClearVariable(&params[0]);
 
-    }else if(appearance::LISTENER_METHOD.length() != 0)
+    }else if(listenerMethod.length() != 0)
     {
         PA_Variable    params[2];
         params[0] = PA_CreateVariable(eVK_Unistring);
         params[1] = PA_CreateVariable(eVK_Unistring);
         
-        PA_Unistring method = PA_CreateUnistring((PA_Unichar *)appearance::LISTENER_METHOD.c_str());
+        PA_Unistring method = PA_CreateUnistring((PA_Unichar *)listenerMethod.c_str());
         PA_SetStringVariable(&params[0], &method);
            
-        PA_Unistring arg1;
+        PA_Unistring arg1 = PA_CreateUnistring(LIGHT);
         
         switch (appearance) {
             case appearance_dark:
@@ -520,6 +582,7 @@ void listenerLoopExecuteMethod()
                 break;
             case appearance_light:
                 arg1 = PA_CreateUnistring(LIGHT);
+                break;
             default:
                 break;
         }

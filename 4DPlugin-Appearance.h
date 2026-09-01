@@ -24,7 +24,6 @@
 #include <vector>
 #include <iostream>
 
-static void listenerInit(void);
 static void listenerLoop(void);
 static void listenerLoopStart(void);
 static void listenerLoopFinish(void);
