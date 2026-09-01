@@ -1,3 +1,5 @@
 *.DS_Store
 appearance/build/*
 appearance/test/userPreferences.*
+build/*
+test/Project/DerivedData/*
