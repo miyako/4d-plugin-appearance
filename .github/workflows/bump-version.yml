@@ -3,6 +3,16 @@ name: Bump
 
 on:
   workflow_dispatch:
+    inputs:
+      mode:
+        type: choice
+        description: Semantic version bump
+        options:
+          - patch
+          - minor
+          - major
+        default: patch
+        required: true
 
 permissions:
   contents: write
@@ -10,10 +20,6 @@ permissions:
 concurrency:
   group: source-version-bump
   cancel-in-progress: false
-
-env:
-  # With zero dispatch inputs, the selected branch's workflow chooses the part.
-  BUMP_PART: patch # patch, minor or major
 
 jobs:
   bump:
@@ -28,6 +34,7 @@ jobs:
 
       - name: validate, bump and push source metadata only
         env:
+          BUMP_PART: ${{ inputs.mode }}
           SELECTED_SHA: ${{ github.sha }}
           SELECTED_BRANCH: ${{ github.ref_name }}
           REF_TYPE: ${{ github.ref_type }}

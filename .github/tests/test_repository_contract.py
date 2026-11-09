@@ -29,6 +29,17 @@ def block(workflow, name):
 
 
 class RepositoryContractTests(unittest.TestCase):
+    def test_exactly_two_workflows_build_has_no_custom_inputs(self):
+        self.assertEqual(
+            {path.name for path in (ROOT / ".github/workflows").iterdir()},
+            {"bump-version.yml", "release.yml"},
+        )
+        build = (ROOT / ".github/workflows/release.yml").read_text()
+        self.assertEqual(build.split("\non:\n", 1)[1].split("\npermissions:", 1)[0].strip(),
+                         "workflow_dispatch:")
+        self.assertNotIn("inputs:", build)
+        self.assertNotIn("${{ inputs.", build)
+
     def test_all_unrelated_original_bytes_preserved(self):
         paths = subprocess.check_output(
             ["git", "-C", str(ROOT), "ls-tree", "-r", "--name-only", BASE], text=True,

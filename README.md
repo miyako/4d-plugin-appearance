@@ -210,10 +210,12 @@ ON APPEARANCE CHANGE CALL("")              // stop listening
 
 ## Manual versioning and releases
 
-**Bump** and **Build** are independent, manual-only Actions workflows. Neither
-has custom dispatch inputs: use GitHub's built-in ref selector. A branch push,
-pull request, or tag push does not start either workflow. Bump never builds,
-tags, publishes a release, or dispatches Build. Build never increments a version.
+**Bump** and **Build** are independent, manual-only Actions workflows. Both use
+GitHub's built-in ref selector. Bump has one required `mode` choice:
+`patch` (default), `minor`, or `major`. Build has **zero custom inputs**.
+A branch push, pull request, or tag push does not start either workflow.
+Bump never builds, tags, publishes a release, or dispatches Build.
+Build never increments a version.
 
 ### Source authority and migration
 
@@ -245,10 +247,11 @@ outside version tokens, and the 4D project are not intake-repair targets.
 
 ### Bump
 
-Select a **branch**, not a tag, and run Bump. Its checked-in `BUMP_PART` setting
-selects `patch` (default), `minor`, or `major`; the source helper also supports
-these three modes for a deliberate local bump. Changing that setting is a
-reviewable source change, not a dispatch input.
+Select a **branch**, not a tag, choose `patch` (default), `minor`, or `major`
+in Bump's required `mode` dropdown, and run Bump. No workflow-file edit is
+needed to select a mode. The choice is passed through a quoted environment
+variable to the guarded source-only helper, which independently validates it.
+The source helper also supports these three modes for a deliberate local bump.
 
 Bump checks out the selected immutable Actions SHA and requires a clean
 checkout matching the exact remote branch tip. It validates its executable

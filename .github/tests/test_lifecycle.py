@@ -2,9 +2,11 @@ import contextlib
 import importlib.util
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
+import textwrap
 import unittest
 from unittest.mock import patch
 import uuid
@@ -409,23 +411,93 @@ class BumpGitTests(unittest.TestCase):
 
 
 class BumpWiringTests(unittest.TestCase):
-    def test_exact_name_manual_zero_inputs_immutable_branch_only(self):
+    def test_exact_name_manual_mode_choice_immutable_branch_only(self):
         workflow = (ROOT / ".github/workflows/bump-version.yml").read_text()
         self.assertIn("\nname: Bump\n", workflow)
-        trigger = workflow.split("on:\n", 1)[1].split("\npermissions:", 1)[0].strip()
-        self.assertEqual(trigger, "workflow_dispatch:")
+        trigger = textwrap.dedent(
+            workflow.split("on:\n", 1)[1].split("\npermissions:", 1)[0],
+        ).strip()
+        self.assertEqual(trigger, textwrap.dedent("""\
+          workflow_dispatch:
+            inputs:
+              mode:
+                type: choice
+                description: Semantic version bump
+                options:
+                  - patch
+                  - minor
+                  - major
+                default: patch
+                required: true""").strip())
         self.assertIn("ref: ${{ github.sha }}", workflow)
         self.assertIn("if: github.ref_type == 'branch'", workflow)
         self.assertIn('test "$REF_TYPE" = branch', workflow)
         self.assertIn("SELECTED_BRANCH: ${{ github.ref_name }}", workflow)
-        self.assertIn("BUMP_PART: patch", workflow)
-        self.assertIn("patch, minor or major", workflow)
+        self.assertIn("BUMP_PART: ${{ inputs.mode }}", workflow)
+        self.assertEqual(workflow.count("${{ inputs."), 1)
         self.assertIn('bump --part "$BUMP_PART" --expected-sha "$SELECTED_SHA"', workflow)
         self.assertIn("group: source-version-bump\n  cancel-in-progress: false", workflow)
-        for prohibited in ("inputs:", "${{ inputs.", "git tag", "--force", "gh release",
+        for prohibited in ("BUMP_PART: patch", "git tag", "--force", "gh release",
                            "gh workflow", "workflow_call:", "release.py", "xcodebuild"):
             self.assertNotIn(prohibited, workflow)
         self.assertTrue(os.access(ROOT / ".github/scripts/bump-hooks/pre-push", os.X_OK))
+
+    def dispatch(self, mode, success=True):
+        workflow = (ROOT / ".github/workflows/bump-version.yml").read_text()
+        step = workflow.split(
+            "      - name: validate, bump and push source metadata only\n", 1,
+        )[1].split("\n      - name:", 1)[0]
+        declared_env, script = step.split("        run: |\n", 1)
+        script = textwrap.dedent(script)
+        self.assertNotIn("${{", script)
+        bindings = dict(re.findall(
+            r"^\s+([A-Z_]+): \$\{\{ ([a-z_.]+) \}\}$", declared_env, re.MULTILINE,
+        ))
+        self.assertEqual(bindings, {
+            "BUMP_PART": "inputs.mode", "SELECTED_SHA": "github.sha",
+            "SELECTED_BRANCH": "github.ref_name", "REF_TYPE": "github.ref_type",
+        })
+        fixture = BumpGitTests()
+        fixture.setUp()
+        try:
+            context = {"inputs.mode": mode, "github.sha": fixture.sha,
+                       "github.ref_name": "selected", "github.ref_type": "branch"}
+            env = {**os.environ, **{key: context[value] for key, value in bindings.items()}}
+            result = subprocess.run(
+                ["bash", "-e", "-c", script], cwd=fixture.local, env=env,
+                text=True, capture_output=True,
+            )
+            if success:
+                self.assertEqual(result.returncode, 0, result.stderr)
+                expected = source.next_version(fixture.current, mode)
+                self.assertEqual(result.stdout.strip(), expected)
+                self.assertEqual(source.read(fixture.local), expected)
+                new = git(fixture.local, "rev-parse", "HEAD")
+                self.assertEqual(fixture.remote_sha(), new)
+                self.assertEqual(git(fixture.local, "rev-list", "--parents", "-n", "1", new),
+                                 f"{new} {fixture.sha}")
+                changed = set(git(fixture.local, "diff-tree", "--no-commit-id",
+                                  "--name-only", "-r", new).splitlines())
+                self.assertEqual(changed, {str(source.PROJECT), str(source.LOCALIZED)})
+                self.assertIn(source.TRAILER, git(fixture.local, "log", "-1", "--format=%B"))
+            else:
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("invalid choice", result.stderr)
+                self.assertEqual(git(fixture.local, "rev-parse", "HEAD"), fixture.sha)
+                fixture.assert_remote_unchanged()
+            self.assertEqual(git(fixture.local, "status", "--porcelain"), "")
+            self.assertEqual(git(fixture.remote, "tag", "--list"), "")
+            self.assertFalse((fixture.local / "dispatch-injection").exists())
+        finally:
+            fixture.doCleanups()
+
+    def test_actual_dispatch_mode_wiring_runs_guarded_patch_minor_major(self):
+        for mode in ("patch", "minor", "major"):
+            with self.subTest(mode=mode):
+                self.dispatch(mode)
+
+    def test_actual_dispatch_invalid_mode_fails_without_shell_injection(self):
+        self.dispatch("minor; touch dispatch-injection", success=False)
 
 
 if __name__ == "__main__":
