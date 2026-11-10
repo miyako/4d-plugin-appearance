@@ -45,7 +45,10 @@ class RepositoryContractTests(unittest.TestCase):
             ["git", "-C", str(ROOT), "ls-tree", "-r", "--name-only", BASE], text=True,
         ).splitlines()
         allowed = {*map(str, source.SOURCE_PATHS), "README.md",
-                   ".github/workflows/bump-version.yml", ".github/workflows/release.yml"}
+                   ".github/workflows/bump-version.yml", ".github/workflows/release.yml",
+                   # Subsequent ownership fixes are covered by test_string_ownership.
+                   "4DPlugin-Appearance.cpp", "support/4DPlugin-JSON.cpp",
+                   "support/4DPlugin-JSON.h"}
         for path in paths:
             if path not in allowed:
                 with self.subTest(path=path):
