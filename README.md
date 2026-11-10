@@ -330,3 +330,31 @@ The tests exercise real disposable Git repositories and local bare origins,
 fake authenticated GitHub APIs, and actual extracted workflow shell blocks
 against closed-PATH native stubs. They do not build, sign, notarize, run 4D,
 dispatch Actions, or mutate production tags/releases.
+
+On macOS, `test_string_ownership.py` also compiles the actual Appearance source,
+the dormant JSON and text/array wrappers, and the bundled SDK against an
+ownership-tracking engine callback with AddressSanitizer and UndefinedBehaviorSanitizer.
+It checks null and allocated empty strings, exact ASCII/BMP/supplementary text,
+both synchronous callback routes, repeated array replacement and cleanup,
+rejected array assignments, and JSON property-result cleanup. Run it alone with
+`python3 -m unittest discover -s .github/tests -p test_string_ownership.py -v`.
+`APPEARANCE_SOURCE_ROOT` can point at an extracted earlier revision to run the
+same harness against the original sources.
+
+The bundled SDK implementation identifies itself as `rev : v14` (its public
+header says v13); these labels are not a verified upstream release version.
+Its scalar string setter shallow-assigns rather than freeing the previous
+descriptor. Callback parameters therefore start with the setter, receive just
+one owned string each, and are cleared after synchronous execution. Any unused
+callback return variable is also cleared. Initialized
+JSON text variables instead use `PA_SetUnistring` to replace their contents.
+Property getters clear returned variables after copying text/scalars or rejecting
+a mismatched type; matching object/collection getters hand their owned reference
+to the caller, which must eventually dispose it. These JSON helpers and wrappers
+are not compiled by the Appearance native targets and do not add public commands.
+
+The engine shim is not a real 4D host. Native notification scheduling, host aborts,
+allocation/resize failures, and Windows execution are not covered. The wrappers'
+successful array transfers and rejected SDK assignments are checked without
+changing the bundled SDK or its failure behavior. No release workflow is run by
+these tests.

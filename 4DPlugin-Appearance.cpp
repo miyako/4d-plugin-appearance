@@ -541,55 +541,30 @@ static void listenerLoopExecuteMethod()
     if(methodId)
     {
         PA_Variable    params[1];
-        params[0] = PA_CreateVariable(eVK_Unistring);
-        
-        PA_Unistring arg1 = PA_CreateUnistring(LIGHT);
-        
-        switch (appearance) {
-            case appearance_dark:
-                arg1 = PA_CreateUnistring(DARK);
-                break;
-            case appearance_light:
-                arg1 = PA_CreateUnistring(LIGHT);
-                break;
-            default:
-                /* get_application_appearance() only ever yields light/dark;
-                   default kept so arg1 is never left uninitialized if that
-                   invariant is ever broken by a future edit */
-                break;
-        }
+        PA_Unistring arg1 = PA_CreateUnistring(appearance == appearance_dark ? DARK : LIGHT);
     
+        // The setter initializes the variable by shallow assignment; do not
+        // create an owned empty string first and overwrite its descriptor.
         PA_SetStringVariable(&params[0], &arg1);
                 
-        PA_ExecuteMethodByID(methodId, params, 1);
+        PA_Variable result = PA_ExecuteMethodByID(methodId, params, 1);
+        PA_ClearVariable(&result);
         
         PA_ClearVariable(&params[0]);
 
     }else if(listenerMethod.length() != 0)
     {
         PA_Variable    params[2];
-        params[0] = PA_CreateVariable(eVK_Unistring);
-        params[1] = PA_CreateVariable(eVK_Unistring);
         
         PA_Unistring method = PA_CreateUnistring((PA_Unichar *)listenerMethod.c_str());
         PA_SetStringVariable(&params[0], &method);
            
-        PA_Unistring arg1 = PA_CreateUnistring(LIGHT);
-        
-        switch (appearance) {
-            case appearance_dark:
-                arg1 = PA_CreateUnistring(DARK);
-                break;
-            case appearance_light:
-                arg1 = PA_CreateUnistring(LIGHT);
-                break;
-            default:
-                break;
-        }
+        PA_Unistring arg1 = PA_CreateUnistring(appearance == appearance_dark ? DARK : LIGHT);
         
         PA_SetStringVariable(&params[1], &arg1);
 
-        PA_ExecuteCommandByID(1007 /* execute method */, params, 2);
+        PA_Variable result = PA_ExecuteCommandByID(1007 /* execute method */, params, 2);
+        PA_ClearVariable(&result);
         
         PA_ClearVariable(&params[0]);
         PA_ClearVariable(&params[1]);
